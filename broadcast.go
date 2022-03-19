@@ -15,6 +15,8 @@ type BroadCaster[T any] interface {
 	Subbmit(T)
 	//Close the broadcaster.
 	Close()
+	//return current num of subscribers.
+	NumofSubscribers() int
 }
 
 //Create a new broadcaster with the given input channel buffer length.
@@ -62,4 +64,7 @@ func (b *broadcaster[T]) Close() {
 	close(b.input)
 	close(b.reg)
 	close(b.unreg)
+}
+func (b *broadcaster[T]) NumofSubscribers() int {
+	return len(b.registers)
 }
