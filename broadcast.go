@@ -7,12 +7,17 @@ type broadcaster[T any] struct {
 	registers map[chan<- T]struct{}
 }
 type BroadCaster[T any] interface {
+	//Register a new channel to receive messages.
 	Register(chan<- T)
+	//Unregister a channel that no longer receive messages.
 	Unregister(chan<- T)
+	//Subbmit a new message to all subscribers.
 	Subbmit(T)
+	//Close the broadcaster.
 	Close()
 }
 
+//Create a new broadcaster with the given input channel buffer length.
 func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 	b := &broadcaster[T]{
 		input:     make(chan T, buflen),
@@ -26,17 +31,20 @@ func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 func (b *broadcaster[T]) run() {
 	for {
 		select {
+		//Send message to all subscribers.
 		case m := <-b.input:
 			for ch := range b.registers {
 				ch <- m
 			}
+		//Add a new subscriber.
 		case ch := <-b.reg:
 			b.registers[ch] = struct{}{}
+		//Delete a subscriber.
 		case ch, ok := <-b.unreg:
 			if ok {
 				delete(b.registers, ch)
 			} else {
-				return
+				return //Terminate this goroutine if this broadcaster is closed.
 			}
 		}
 	}
