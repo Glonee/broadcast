@@ -14,8 +14,8 @@ func Test(t *testing.T) {
 		b.Register(cch)
 		go func() {
 			<-cch
-			wg.Done()
 			b.Unregister(cch)
+			wg.Done()
 		}()
 	}
 	b.Subbmit(1)

@@ -1,9 +1,13 @@
 package broadcast
 
+type Operate[T any] struct {
+	Chan chan<- T
+	Done chan<- struct{}
+}
 type broadcaster[T any] struct {
 	input     chan T
-	reg       chan chan<- T
-	unreg     chan chan<- T
+	reg       chan Operate[T]
+	unreg     chan Operate[T]
 	registers map[chan<- T]struct{}
 }
 type BroadCaster[T any] interface {
@@ -15,16 +19,14 @@ type BroadCaster[T any] interface {
 	Subbmit(T)
 	//Close the broadcaster.
 	Close()
-	//return current num of subscribers.
-	NumofSubscribers() int
 }
 
 //Create a new broadcaster with the given input channel buffer length.
 func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 	b := &broadcaster[T]{
 		input:     make(chan T, buflen),
-		reg:       make(chan chan<- T),
-		unreg:     make(chan chan<- T),
+		reg:       make(chan Operate[T]),
+		unreg:     make(chan Operate[T]),
 		registers: make(map[chan<- T]struct{}),
 	}
 	go b.run()
@@ -40,11 +42,13 @@ func (b *broadcaster[T]) run() {
 			}
 		//Add a new subscriber.
 		case ch := <-b.reg:
-			b.registers[ch] = struct{}{}
+			b.registers[ch.Chan] = struct{}{}
+			ch.Done <- struct{}{}
 		//Delete a subscriber.
 		case ch, ok := <-b.unreg:
 			if ok {
-				delete(b.registers, ch)
+				delete(b.registers, ch.Chan)
+				ch.Done <- struct{}{}
 			} else {
 				return //Terminate this goroutine if this broadcaster is closed.
 			}
@@ -52,10 +56,20 @@ func (b *broadcaster[T]) run() {
 	}
 }
 func (b *broadcaster[T]) Register(ch chan<- T) {
-	b.reg <- ch
+	done := make(chan struct{})
+	b.reg <- Operate[T]{
+		Chan: ch,
+		Done: done,
+	}
+	<-done
 }
 func (b *broadcaster[T]) Unregister(ch chan<- T) {
-	b.unreg <- ch
+	done := make(chan struct{})
+	b.unreg <- Operate[T]{
+		Chan: ch,
+		Done: done,
+	}
+	<-done
 }
 func (b *broadcaster[T]) Subbmit(m T) {
 	b.input <- m
@@ -64,7 +78,4 @@ func (b *broadcaster[T]) Close() {
 	close(b.input)
 	close(b.reg)
 	close(b.unreg)
-}
-func (b *broadcaster[T]) NumofSubscribers() int {
-	return len(b.registers)
 }
