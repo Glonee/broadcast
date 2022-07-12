@@ -4,18 +4,19 @@ import "sync"
 
 //Synced broadcaster provide broadcast without running a goroutine in the background.
 //It should act the same as UnblockedbroadCaster.
+//The zero SyncedBroadcaster is empty and ready for use. A broadcaster must not be copied after first use.
 type SyncedBroadcaster[T any] struct {
-	sync.Map
+	m sync.Map
 }
 
 func (b *SyncedBroadcaster[T]) Register(ch chan<- T) {
-	b.Store(ch, struct{}{})
+	b.m.Store(ch, struct{}{})
 }
 func (b *SyncedBroadcaster[T]) Unregister(ch chan<- T) {
-	b.Delete(ch)
+	b.m.Delete(ch)
 }
 func (b *SyncedBroadcaster[T]) Subbmit(m T) {
-	b.Range(func(key, _ any) bool {
+	b.m.Range(func(key, _ any) bool {
 		select {
 		case key.(chan<- T) <- m:
 		default:
@@ -24,5 +25,5 @@ func (b *SyncedBroadcaster[T]) Subbmit(m T) {
 	})
 }
 func (b *SyncedBroadcaster[T]) Close() {
-	*b = SyncedBroadcaster[T]{}
+	b.m = sync.Map{}
 }

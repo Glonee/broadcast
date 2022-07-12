@@ -19,8 +19,7 @@ type BroadCaster[T any] interface {
 
 //Create a new broadcaster with the given input channel buffer length.
 //If ubable to send messages to registered channels, the broadcaster will be blocked
-//and ubable to send messages to other channels, or send the next message.
-//To aviod that, use NewUnblockedbroadCaster() instead.
+//and ubable to send messages to other channels.
 func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 	b := &broadcaster[T]{
 		input:     make(chan T, buflen),
@@ -35,7 +34,7 @@ func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 //Create a new broadcaster with the given input channel buffer length.
 //This broadcaster won't be blocked if unable to send messages to some registered channels.
 //Instead, these channels will be ignored.
-//Note that the registered channel must have buffer, otherwise it will always be ignored.
+//Note that the registered channel must be buffered, otherwise it will always be ignored.
 func NewUnblockedbroadCaster[T any](buflen int) BroadCaster[T] {
 	b := &broadcaster[T]{
 		input:     make(chan T, buflen),
