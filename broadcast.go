@@ -5,6 +5,7 @@ type broadcaster[T any] struct {
 	reg       chan chan<- T
 	unreg     chan chan<- T
 	registers map[chan<- T]struct{}
+	done      chan struct{}
 }
 type BroadCaster[T any] interface {
 	//Register a new channel to receive messages.
@@ -26,6 +27,7 @@ func NewbroadCaster[T any](buflen int) BroadCaster[T] {
 		reg:       make(chan chan<- T),
 		unreg:     make(chan chan<- T),
 		registers: make(map[chan<- T]struct{}),
+		done:      make(chan struct{}),
 	}
 	go b.run()
 	return b
@@ -41,6 +43,7 @@ func NewUnblockedbroadCaster[T any](buflen int) BroadCaster[T] {
 		reg:       make(chan chan<- T),
 		unreg:     make(chan chan<- T),
 		registers: make(map[chan<- T]struct{}),
+		done:      make(chan struct{}),
 	}
 	go b.unblockedrun()
 	return b
@@ -57,12 +60,14 @@ func (b *broadcaster[T]) run() {
 		case ch := <-b.reg:
 			b.registers[ch] = struct{}{}
 		//Delete a subscriber.
-		case ch, ok := <-b.unreg:
-			if ok {
-				delete(b.registers, ch)
-			} else {
-				return //Terminate this goroutine if this broadcaster is closed.
-			}
+		case ch := <-b.unreg:
+			delete(b.registers, ch)
+		//Terminate the broadcaster.
+		case <-b.done:
+			close(b.input)
+			close(b.reg)
+			close(b.unreg)
+			return
 		}
 	}
 }
@@ -83,12 +88,14 @@ func (b *broadcaster[T]) unblockedrun() {
 		case ch := <-b.reg:
 			b.registers[ch] = struct{}{}
 		//Delete a subscriber.
-		case ch, ok := <-b.unreg:
-			if ok {
-				delete(b.registers, ch)
-			} else {
-				return //Terminate this goroutine if this broadcaster is closed.
-			}
+		case ch := <-b.unreg:
+			delete(b.registers, ch)
+		//Terminate the broadcaster.
+		case <-b.done:
+			close(b.input)
+			close(b.reg)
+			close(b.unreg)
+			return
 		}
 	}
 }
@@ -102,7 +109,5 @@ func (b *broadcaster[T]) Subbmit(m T) {
 	b.input <- m
 }
 func (b *broadcaster[T]) Close() {
-	close(b.input)
-	close(b.reg)
-	close(b.unreg)
+	close(b.done)
 }
