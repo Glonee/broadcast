@@ -2,9 +2,9 @@ package broadcast
 
 import "sync"
 
-//Synced broadcaster provide broadcast without running a goroutine in the background.
-//It should act the same as UnblockedbroadCaster.
-//The zero SyncedBroadcaster is empty and ready for use. A broadcaster must not be copied after first use.
+// Synced broadcaster provide broadcast without running a goroutine in the background.
+// It should act the same as UnblockedbroadCaster.
+// The zero SyncedBroadcaster is empty and ready for use. A broadcaster must not be copied after first use.
 type SyncedBroadcaster[T any] struct {
 	m sync.Map
 }
