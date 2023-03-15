@@ -12,9 +12,11 @@ type SyncedBroadcaster[T any] struct {
 func (b *SyncedBroadcaster[T]) Register(ch chan<- T) {
 	b.m.Store(ch, struct{}{})
 }
+
 func (b *SyncedBroadcaster[T]) Unregister(ch chan<- T) {
 	b.m.Delete(ch)
 }
+
 func (b *SyncedBroadcaster[T]) Subbmit(m T) {
 	b.m.Range(func(key, _ any) bool {
 		select {
@@ -24,6 +26,7 @@ func (b *SyncedBroadcaster[T]) Subbmit(m T) {
 		return true
 	})
 }
+
 func (b *SyncedBroadcaster[T]) Close() {
 	b.m = sync.Map{}
 }

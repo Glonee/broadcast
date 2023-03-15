@@ -2,116 +2,117 @@ package broadcast
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
 )
 
-func Test(t *testing.T) {
-	b := NewbroadCaster[int](100)
+func TestBroadcaster(t *testing.T) {
+	b := NewBroadcaster[int](1)
 	defer b.Close()
 	wg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		cch := make(chan int)
 		b.Register(cch)
-		go func() {
-			<-cch
-			b.Unregister(cch)
-			wg.Done()
-		}()
+		go func(c chan int) {
+			defer wg.Done()
+			ctx, calcel := context.WithTimeout(context.Background(), time.Second)
+			defer calcel()
+			select {
+			case <-ctx.Done():
+				t.Error("a subscriber did't receive message")
+			case <-c:
+			}
+		}(cch)
 	}
-	b.Subbmit(1)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	finished := make(chan struct{})
-	quit := make(chan struct{})
-	go func() {
+	cch := make(chan int)
+	b.Register(cch)
+	b.Unregister(cch)
+	wg.Add(1)
+	go func(c chan int) {
+		defer wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
 		select {
 		case <-ctx.Done():
-			t.Error(errors.New("not all subscribers received messages"))
-		case <-finished:
+		case <-c:
+			t.Error("received message after unregister")
 		}
-		quit <- struct{}{}
-	}()
-	go func() {
-		wg.Wait()
-		finished <- struct{}{}
-	}()
-	<-quit
+	}(cch)
+	b.Subbmit(1)
+	wg.Wait()
 }
-func Test_unblockedBroadcaster(t *testing.T) {
-	b := NewUnblockedbroadCaster[int](100)
+
+func TestUnblockedBroadcaster(t *testing.T) {
+	b := NewUnblockedBroadcaster[int](1)
 	defer b.Close()
 	wg := sync.WaitGroup{}
-	for i := 0; i < 10; i++ {
-		cch := make(chan int)
-		b.Register(cch)
-	}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		cch := make(chan int, 1)
 		b.Register(cch)
-		go func() {
-			<-cch
-			b.Unregister(cch)
-			wg.Done()
-		}()
+		go func(c chan int) {
+			defer wg.Done()
+			ctx, calcel := context.WithTimeout(context.Background(), time.Second)
+			defer calcel()
+			select {
+			case <-ctx.Done():
+				t.Error("a subscriber did't receive message")
+			case <-c:
+			}
+		}(cch)
 	}
-	b.Subbmit(1)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	finished := make(chan struct{})
-	quit := make(chan struct{})
-	go func() {
+	cch := make(chan int, 1)
+	b.Register(cch)
+	b.Unregister(cch)
+	wg.Add(1)
+	go func(c chan int) {
+		defer wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
 		select {
 		case <-ctx.Done():
-			t.Error(errors.New("not all subscribers received messages"))
-		case <-finished:
+		case <-c:
+			t.Error("received message after unregister")
 		}
-		quit <- struct{}{}
-	}()
-	go func() {
-		wg.Wait()
-		finished <- struct{}{}
-	}()
-	<-quit
+	}(cch)
+	b.Subbmit(1)
+	wg.Wait()
 }
-func Test_SyncedBroadCaster(t *testing.T) {
-	b := SyncedBroadcaster[int]{}
+
+func TestBroadcasterBlocks(t *testing.T) {
+	b := NewBroadcaster[int](0)
 	defer b.Close()
-	wg := sync.WaitGroup{}
-	for i := 0; i < 10; i++ {
-		cch := make(chan int)
-		b.Register(cch)
-	}
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		cch := make(chan int, 1)
-		b.Register(cch)
-		go func() {
-			<-cch
-			b.Unregister(cch)
-			wg.Done()
-		}()
-	}
-	b.Subbmit(1)
+	cch := make(chan int)
+	b.Register(cch)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	finished := make(chan struct{})
-	quit := make(chan struct{})
 	go func() {
-		select {
-		case <-ctx.Done():
-			t.Error(errors.New("not all subscribers received messages"))
-		case <-finished:
-		}
-		quit <- struct{}{}
+		b.Subbmit(1)
+		b.Subbmit(1)
+		cancel()
 	}()
+	<-ctx.Done()
+	if ctx.Err() == context.Canceled {
+		t.Error("broadcaster didn't block")
+	}
+}
+
+func TestUnblockBroadcasterUnblock(t *testing.T) {
+	b := NewUnblockedBroadcaster[int](0)
+	defer b.Close()
+	cch := make(chan int)
+	b.Register(cch)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	go func() {
-		wg.Wait()
-		finished <- struct{}{}
+		b.Subbmit(1)
+		b.Subbmit(1)
+		cancel()
 	}()
-	<-quit
+	<-ctx.Done()
+	if ctx.Err() != context.Canceled {
+		t.Error("broadcaster blocked")
+	}
 }
