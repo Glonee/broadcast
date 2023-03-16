@@ -14,7 +14,7 @@ type Broadcaster[T any] interface {
 	Unregister(chan<- T)
 	// Subbmit a new message to all subscribers.
 	Subbmit(T)
-	// Close the broadcaster. Using of closed broadcaster will result in panic.
+	// Close the broadcaster. Using of closed broadcaster or close a closed broadcaster will result in panic.
 	Close()
 }
 
