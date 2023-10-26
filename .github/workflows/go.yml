@@ -13,24 +13,22 @@ jobs:
   unit:
     strategy:
       matrix:
-        go: [ '1.18', '1.19', '1.20' ]
-    runs-on: ubuntu-latest
+        os: [ 'ubuntu', 'windows', 'macos' ]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Go ${{ matrix.go }}
+      - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go }}
-          cache: false
+          go-version: stable
 
       - name: Test
         run: go test -v -race -coverprofile coverage.txt -covermode atomic ./...
         
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
-        if: matrix.go == '1.20'
+        if: matrix.os == 'ubuntu'
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.txt
